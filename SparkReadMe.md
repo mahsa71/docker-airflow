@@ -1,5 +1,6 @@
 ## Docke Airflow supporting spark_operator
 After following the instructions in this document, our new puckle/docker-airflow image has a  fully functioning spark_operator.
+Ps: This image is enabled with persistent postgres and redis storage.
 
 #Set your spark Ip/hostname
 change the hostname:YourIp in docker-compose-CeleryExecutor.yml with the External spark's node Information.
