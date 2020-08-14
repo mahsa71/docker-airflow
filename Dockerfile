@@ -13,10 +13,11 @@ ENV TERM linux
 
 # Airflow
 ARG AIRFLOW_VERSION=1.10.9
+ARG AIRFLOW_HOME=/usr/local/airflow
 ARG AIRFLOW_USER_HOME=/usr/local/airflow
 ARG AIRFLOW_DEPS=""
 ARG PYTHON_DEPS=""
-ENV AIRFLOW_HOME=${AIRFLOW_USER_HOME}
+ENV AIRFLOW_HOME=${AIRFLOW_HOME}
 
 # Define en_US.
 ENV LANGUAGE en_US.UTF-8
@@ -76,11 +77,35 @@ RUN set -ex \
 COPY script/entrypoint.sh /entrypoint.sh
 COPY config/airflow.cfg ${AIRFLOW_USER_HOME}/airflow.cfg
 
-RUN chown -R airflow: ${AIRFLOW_USER_HOME}
+RUN mkdir ${AIRFLOW_HOME}/logs && chown -R airflow: ${AIRFLOW_HOME}
+VOLUME /usr/local/airflow/logs/
 
 EXPOSE 8080 5555 8793
+
+# install Java
+USER root
+RUN echo "deb http://security.debian.org/debian-security stretch/updates main" >> /etc/apt/sources.list                                                   
+RUN mkdir -p /usr/share/man/man1 && \
+    apt-get update -y && \
+    apt-get install -y openjdk-8-jdk
+
+RUN apt-get install unzip -y && \
+    apt-get autoremove -y
+    
+#SPARK ENV
+
+ENV SPARK_HOME=/opt/spark
+ENV HADOOP_HOME=/opt/hadoop
+ENV HADOOP_CONF_DIR="${HADOOP_HOME}/etc/hadoop"
+ENV YARN_CONF_DIR="${HADOOP_HOME}/etc/hadoop"
+ENV SPARK_JARS_DIR="${SPARK_HOME}/jars"
+
+ENV JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-amd64
+ENV PYTHONPATH=${SPARK_HOME}/python/:${SPARK_HOME}/python/lib/py4j-0.10.7-src.zip:${PYTHONPATH}
+ENV PATH=${SPARK_HOME}/bin:${HADOOP_HOME}/bin:${HADOOP_HOME}/sbin:${PYTHONPATH}:${PATH}
 
 USER airflow
 WORKDIR ${AIRFLOW_USER_HOME}
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["webserver"]
+

@@ -3,38 +3,54 @@ services:
     redis:
         image: 'redis:5.0.5'
         # command: redis-server --requirepass redispass
-
+        command: redis-server --appendonly yes
+        volumes:
+            - /home/datalab/ghanavati/docker-airflow/redis:/data
     postgres:
         image: postgres:9.6
         environment:
-            - POSTGRES_USER=airflow
-            - POSTGRES_PASSWORD=airflow
-            - POSTGRES_DB=airflow
+            # - POSTGRES_USER=airflow
+            # - POSTGRES_PASSWORD=airflow
+            #- POSTGRES_DB=airflow
         # Uncomment these lines to persist data on the local filesystem.
-        #     - PGDATA=/var/lib/postgresql/data/pgdata
-        # volumes:
-        #     - ./pgdata:/var/lib/postgresql/data/pgdata
+            - PGDATA=/var/lib/postgresql/data/pgdata
+        volumes:
+            - ./pgdata:/var/lib/postgresql/data/pgdata
 
     webserver:
-        image: puckel/docker-airflow:1.10.9
+        image: puckel/docker-airflow:withSpark 
         restart: always
         depends_on:
             - postgres
             - redis
         environment:
             - LOAD_EX=n
+            #jJcPqFIzb35qMdgtkK7-uQkSv5tBaTfyoa2evyG5c00=,46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
             - FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
             - EXECUTOR=Celery
-            # - POSTGRES_USER=airflow
-            # - POSTGRES_PASSWORD=airflow
-            # - POSTGRES_DB=airflow
-            # - REDIS_PASSWORD=redispass
+            - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
+            - AIRFLOW__WEBSERVER__RBAC=true
+            #- POSTGRES_USER=airflow
+            #- POSTGRES_PASSWORD=airflow
+            #- POSTGRES_DB=airflow
+            #- REDIS_PASSWORD=redispass
+            #- PYPYSPARK_PYTHON=python
+            #- SPARK_PYTHON_PATH=
+            - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+            - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
         volumes:
             - ./dags:/usr/local/airflow/dags
             # Uncomment to include custom plugins
             # - ./plugins:/usr/local/airflow/plugins
+            #- ./config/webserver_config.py:/usr/local/airflow/webserver_config.py:z
+            - ./logs/docker-airflow_webserver_1:/usr/local/airflow/logs
+        hostname: webserver
+        #changed
+        extra_hosts:
+            - "node1:YourIP"
         ports:
             - "8080:8080"
+            #- "4040:4040"
         command: webserver
         healthcheck:
             test: ["CMD-SHELL", "[ -f /usr/local/airflow/airflow-webserver.pid ]"]
@@ -43,19 +59,26 @@ services:
             retries: 3
 
     flower:
-        image: puckel/docker-airflow:1.10.9
+        image: puckel/docker-airflow:withSpark  
         restart: always
         depends_on:
             - redis
+        volumes:
+            - ./logs/docker-airflow_flower_1:/usr/local/airflow/logs
         environment:
             - EXECUTOR=Celery
+            - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
+            - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+            - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
             # - REDIS_PASSWORD=redispass
         ports:
             - "5555:5555"
+        extra_hosts:
+            - "node1:YourIP"
         command: flower
 
     scheduler:
-        image: puckel/docker-airflow:1.10.9
+        image: puckel/docker-airflow:withSpark  #latest #1.10.9
         restart: always
         depends_on:
             - webserver
@@ -63,18 +86,26 @@ services:
             - ./dags:/usr/local/airflow/dags
             # Uncomment to include custom plugins
             # - ./plugins:/usr/local/airflow/plugins
+            - ./logs/docker-airflow_scheduler_1:/usr/local/airflow/logs
+
         environment:
             - LOAD_EX=n
             - FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
             - EXECUTOR=Celery
-            # - POSTGRES_USER=airflow
-            # - POSTGRES_PASSWORD=airflow
-            # - POSTGRES_DB=airflow
+            - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
+            #- POSTGRES_USER=airflow
+            #- POSTGRES_PASSWORD=airflow
+            #- POSTGRES_DB=airflow
+            - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+            - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
             # - REDIS_PASSWORD=redispass
         command: scheduler
+        #changed
+        extra_hosts:
+            - "node1:YourIP"
 
     worker:
-        image: puckel/docker-airflow:1.10.9
+        image: puckel/docker-airflow:withSpark 
         restart: always
         depends_on:
             - scheduler
@@ -82,11 +113,22 @@ services:
             - ./dags:/usr/local/airflow/dags
             # Uncomment to include custom plugins
             # - ./plugins:/usr/local/airflow/plugins
+            - ./logs/docker-airflow_worker_1:/usr/local/airflow/logs
+            #changed
+            - ./spark:/opt/spark
+            - ./hadoop:/opt/hadoop
+
         environment:
             - FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
             - EXECUTOR=Celery
-            # - POSTGRES_USER=airflow
-            # - POSTGRES_PASSWORD=airflow
-            # - POSTGRES_DB=airflow
+            - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
+            #- POSTGRES_USER=airflow
+            #- POSTGRES_PASSWORD=airflow
+            #- POSTGRES_DB=airflow
+            - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+            - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
             # - REDIS_PASSWORD=redispass
         command: worker
+        #changed
+        extra_hosts:
+            - "node1:YourIP"
